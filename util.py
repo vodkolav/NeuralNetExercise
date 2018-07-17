@@ -2,20 +2,7 @@
 
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import time
-import pickle
-import timeit
-import tensorflow as tf
-import keras as ks
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D as a3d
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report,confusion_matrix
-#%matplotlib inline
-from IPython.core.interactiveshell import InteractiveShell
-InteractiveShell.ast_node_interactivity = "all"
-
 
 
 def softmax(x):
@@ -119,7 +106,9 @@ def ConvertData(pix):
     return converted/256, converted/256
 #pix = fer['pixels']
 
-
+def nBatches(nSamples, batchsize):
+    #attention! this will skip last batch
+    return int(np.floor(nSamples/batchsize))
 
 
 
