@@ -67,15 +67,16 @@ if 0:
 #%% Model creation
     
 if 1:
-  model = NeuralNet(Epochs= 500000, learning_rate= 1e-6, batch_size = 4000,  verbose = False, regularisation = 1e-11)
-  model.add_layer(nnet_layer(2304, 20))
-  model.add_layer(nnet_layer(20, 7))
+  model = NeuralNet(Epochs= 1e4, learning_rate= 1e-6, batch_size = 10000,  verbose = False, regularisation = 1e-9)
+  model.add_layer(nnet_layer(2304, 200))
+  model.add_layer(nnet_layer(200, 7))
   refit = False
 else:
-  model.Epochs = 5e5
+  model.Epochs = 1e4
   model.learning_rate = 1e-6
-  model.batch_size = 4000
+  model.batch_size = 10000
   model.verbose = False
+  model.regularisation = 1e-9
   
 #    model.Epochs = 100000
 #    model.learning_rate = 1e-6

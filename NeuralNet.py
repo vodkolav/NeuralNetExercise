@@ -29,6 +29,10 @@ class nnet_layer:
         
         
     @property
+    def shape(self):
+        return self.__W.shape      
+        
+    @property
     def W(self):
         return self.__W    
     @W.setter
@@ -115,12 +119,12 @@ class NeuralNet():
         
 
     def __init__(self, Epochs = 1000, learning_rate = 1e-6, batch_size = 1000,  verbose = False, regularisation = 0):
-        self.__layers = []
+        self.L = []
         self.costs = []
-        self.__Epochs = Epochs
-        self.__learning_rate = learning_rate
-        self.__batch_size = batch_size
-        self.__verbose = False
+        self.Epochs = Epochs
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+        self.verbose = False
         self.reg = regularisation
 #    def __init__(self, *args, **kwargs):
 #        if len(kwargs)==1:
@@ -152,16 +156,20 @@ class NeuralNet():
 #            self.__dict__.update(tmp_dict) 
         
     def add_layer(self,layer):
-        layer.indx = len(self.L)+1
-        self.L.append(layer)        
+     #   raise ValueError("Next layer first dimension must be the same as previous layer's second dimension")        
+      layer.indx = len(self.L)+1
+      self.L.append(layer)        
     
-        
-    def nnet_predict(X,W1,b1,W2,b2):     
-        Z = activation(X.dot(W1) + b1 )     
-        Yhat = softmax(Z.dot(W2) + b2)   
-        return Yhat, Z
+    def describe_layers(self):
+      leng = len(self.L)
+      out = "input layer: " + str(self.L[0].shape[0]) 
+      for l in range(0,leng-1):
+        out += " |hidden layer: "+ str(self.L[l].shape[1])
+      out += " |output layer: "+ str(self.L[leng-1].shape[1]) 
+      return out  
 
-    def predict(self, X):     
+
+    def forward(self, X):     
         x = X.copy()
         for l in self.L:
 
@@ -174,6 +182,9 @@ class NeuralNet():
             else:        
                 Yhat = softmax(Z)   
                 l.Z = x
+        return Yhat          
+
+      
                 #print("Yhat: ", Yhat.shape)    
                   
 #            if self.verbose:
@@ -183,7 +194,11 @@ class NeuralNet():
 #                print("b: ", l.b.shape)
 #                print("Z: ", l.Z.shape)      
             
-        return Yhat
+
+    
+    def predict(self, X):  
+      pY = self.forward(X)
+      return np.argmax(pY, axis = 1)
     
     
     
@@ -191,6 +206,7 @@ class NeuralNet():
         
         timer = time.time()
         print("Begin training with params: ", "Epochs=", self.Epochs, "learning_rate=" , self.learning_rate , "regularization=", self.reg )
+        print(self.describe_layers())        
         nbatches = nBatches(len(X), self.batch_size)
         bs = self.batch_size        
         print('nbatches: ', nbatches, "batch_size: ", bs)
@@ -206,7 +222,7 @@ class NeuralNet():
               x = X[batch*bs:(batch+1)*bs,:]
               t = T[batch*bs:(batch+1)*bs,:]  
             
-            out = self.predict(x)
+            out = self.forward(x)
             if epoch % 1000 ==0:
                 c = cost(t,out)
                 P = np.argmax(out, axis = 1)                
@@ -221,8 +237,12 @@ class NeuralNet():
                   print("ERROR! NaNs detected in dW. aborting")
                   h.interrupted = True
                   break
-                self.L[l].W = np.add(self.L[l].W,np.multiply(self.learning_rate, dW))
-                self.L[l].b = np.add(self.L[l].b,np.multiply(self.learning_rate, db))
+#                self.L[l].W = np.add(self.L[l].W,np.multiply(self.learning_rate, dW))
+#                self.L[l].b = np.add(self.L[l].b,np.multiply(self.learning_rate, db))
+                
+                self.L[l].W += self.learning_rate * ( dW + self.reg * self.L[l].W)
+                self.L[l].b += self.learning_rate * ( db + self.reg * self.L[l].b)
+                
                 if h.interrupted:                    
                   print('Ok, finishing current epoch and exiting. Please Wait...')    
    
@@ -262,25 +282,39 @@ class NeuralNet():
       
       
     def  deriv_W_b(self, X, T, Y, l):
-        TYWdZ = T - Y
-    
-        #print("X: ", X.shape,  "TYWdZ", TYWdZ.shape, "W: ", self.L[l].W.shape, "Z: ", self.L[l].Z.shape)# , "dZ: ", activation_deriv(self.L[ll].Z).shape )
+      
+        #TODO: performance can be improved:
+        # TYWdz in the current layer is TYWdz of the previous layer, dotted with W*a(Z) of current layer.  
+        # So the for loop can be replaced by  saving TYWdz in previous layer and then retreiving it in calculation of current layer
+        # For now the function re-calculates TYWdz on each layer
+        
+        TYWdZ = T - Y    
         last = len(self.L)-1
-        for ll in range(last,l,-1):
-            #print("from, to, current: " ,last, l,ll)
-            #print("TYWdZ: ", TYWdZ.shape,"self.L[ll].W" , self.L[ll].W.shape , "self.L[ll-1].Z", self.L[ll-1].Z.shape)
-            
-            
-            TYWdZ = TYWdZ.dot(self.L[ll].W.T)*activation_deriv(self.L[ll-1].Z)
-            
-        #TmY = TmY.dot(WxdZ)               
-        #print("self.L[l.indx-2].Z" , self.L[l.indx-2].Z.shape ,"TYWdZ: ", TYWdZ.shape)
+        for ll in range(last,l,-1):                  
+            TYWdZ = TYWdZ.dot(self.L[ll].W.T)*activation_deriv(self.L[ll-1].Z)            
         dW = self.L[l-1].Z.T.dot(TYWdZ)
         db = TYWdZ.sum(axis = 0)
+        return dW, db   
+      
+      
+      
+        #print("X: ", X.shape,  "TYWdZ", TYWdZ.shape, "W: ", self.L[l].W.shape, "Z: ", self.L[l].Z.shape)# , "dZ: ", activation_deriv(self.L[ll].Z).shape )        
+        #print("from, to, current: " ,last, l,ll)
+        #print("TYWdZ: ", TYWdZ.shape,"self.L[ll].W" , self.L[ll].W.shape , "self.L[ll-1].Z", self.L[ll-1].Z.shape)           
+        #TmY = TmY.dot(WxdZ)               
+        #print("self.L[l.indx-2].Z" , self.L[l.indx-2].Z.shape ,"TYWdZ: ", TYWdZ.shape)
         #print("dW: ", dW.shape,  "TYWdZ", TYWdZ.shape, "W: ", self.L[l].W.shape, "Z: ", self.L[l].Z.shape)
         #self.L[l].W.shape = dW.shape
-        return dW, db 
+        
+        
+        
 
+    # obsolete single hidden layer functions
+    def nnet_predict(X,W1,b1,W2,b2):     
+        Z = activation(X.dot(W1) + b1 )     
+        Yhat = softmax(Z.dot(W2) + b2)   
+        return Yhat, Z
+      
     def  derivative_w1_b1(X, Z, T, Y, W2):
         dZ = (T - Y).dot(W2.T)*activation_deriv(Z)
         return X.T.dot(dZ), dZ.sum(axis = 0)
